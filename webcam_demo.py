@@ -111,7 +111,7 @@ def main():
                 min_pose_score=0.15)
             
             keypoint_coords *= output_scale
-            cp_keypoint_coords = keypoint_coords # copy 
+            cp_keypoint_coords = keypoint_coords.copy() # copy 
             keypoint_coords /= [input_image.shape[1], input_image.shape[2]]
             # keypoint_coords *= 400
 
