@@ -43,6 +43,7 @@ parser.add_argument('--cam_height', type=int, default=720)
 parser.add_argument('--scale_factor', type=float, default=0.7125)
 parser.add_argument('--file', type=str, default=None, help="Optionally use a video file instead of a live camera")
 parser.add_argument('--notxt', action='store_true')
+parser.add_argument("-s", "--size", type=int, default=5, help="size of queue for averaging")
 args = parser.parse_args()
 
 def unitCoords(coords, oldResolution):
@@ -71,6 +72,10 @@ def addText(image, text):
                     fontScale, color, thickness, cv2.LINE_AA) 
 
     return image
+
+
+from collections import deque, Counter
+Q = deque(maxlen=args.size)
 
 def main():
     with tf.Session() as sess:
@@ -135,9 +140,12 @@ def main():
                     f_df = f_df.fillna(0)
                     
                     y = clf.predict(f_df)[0]
-                    print(y, pose_scores[pi])
+                    # print(y, pose_scores[pi])
                     if pose_scores[pi] > 0.4:
-                        overlay_image = addText(overlay_image, y)
+                        Q.append(y)
+                        b = Counter(Q).most_common(1)[0][0]
+                        print (b)
+                        overlay_image = addText(overlay_image, b)
 
             
             cv2.imshow('posenet', overlay_image)
