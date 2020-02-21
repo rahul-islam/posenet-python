@@ -3,9 +3,9 @@ import cv2
 import time
 import argparse
 import os
-
+from joblib import dump, load
 import posenet
-
+import pandas as pd
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=int, default=101)
@@ -15,6 +15,33 @@ parser.add_argument('--image_dir', type=str, default='./images')
 parser.add_argument('--output_dir', type=str, default='./output')
 args = parser.parse_args()
 
+column_names = ['Eye_L_x', 'Eye_L_y', 'Eye_R_x', 'Eye_R_y', 'Hip_L_x', 'Hip_L_y',
+       'Knee_L_x', 'Knee_L_y', 'Ankle_L_x', 'Ankle_L_y', 'Toes_L_x',
+       'Toes_L_y', 'ToesEnd_L_x', 'ToesEnd_L_y', 'Shoulder_L_x',
+       'Shoulder_L_y', 'Elbow_L_x', 'Elbow_L_y', 'Wrist_L_x', 'Wrist_L_y',
+       'Hip_R_x', 'Hip_R_y', 'Knee_R_x', 'Knee_R_y', 'Ankle_R_x', 'Ankle_R_y',
+       'Shoulder_R_x', 'Shoulder_R_y', 'Elbow_R_x', 'Elbow_R_y', 'Wrist_R_x',
+       'Wrist_R_y']
+
+UNITY_PART_MAP = {
+    # 'nose' : '',
+    'leftEye' : 'Eye_L',
+    'rightEye' : 'Eye_R',
+    # 'leftEar' : '',
+    # 'rightEar' : '',
+    'leftShoulder' : 'Shoulder_L',
+    'rightShoulder' : 'Shoulder_R',
+    'leftElbow' : 'Elbow_L',
+    'rightElbow' : 'Elbow_R',
+    'leftWrist' : 'Wrist_L',
+    'rightWrist' : 'Wrist_R',
+    'leftHip' : 'Hip_L',
+    'rightHip' : 'Hip_R',
+    'leftKnee' : 'Knee_L',
+    'rightKnee' : 'Knee_R',
+    'leftAnkle' : 'Ankle_L',
+    'rightAnkle' : 'Ankle_R',
+}
 
 def main():
 
@@ -47,8 +74,14 @@ def main():
                 output_stride=output_stride,
                 max_pose_detections=10,
                 min_pose_score=0.25)
-
+            
+            print(input_image.shape[1])
+            print(keypoint_coords[0] / [input_image.shape[1], input_image.shape[2]])
             keypoint_coords *= output_scale
+            keypoint_coords /= [input_image.shape[1], input_image.shape[2]]
+            # keypoint_coords *= 100
+            
+            clf = load('synthpose.joblib') 
 
             if args.output_dir:
                 draw_image = posenet.draw_skel_and_kp(
@@ -64,11 +97,26 @@ def main():
                     if pose_scores[pi] == 0.:
                         break
                     print('Pose #%d, score = %f' % (pi, pose_scores[pi]))
+                    t_row = {} #
+                    f_df = pd.DataFrame(columns = column_names)
                     for ki, (s, c) in enumerate(zip(keypoint_scores[pi, :], keypoint_coords[pi, :, :])):
                         print('Keypoint %s, score = %f, coord = %s' % (posenet.PART_NAMES[ki], s, c))
+                        if posenet.PART_NAMES[ki] in UNITY_PART_MAP:
+                            t_row[UNITY_PART_MAP[posenet.PART_NAMES[ki]] + '_x'] = c[0];
+                            t_row[UNITY_PART_MAP[posenet.PART_NAMES[ki]] + '_y'] = c[1];
+                    
+                    f_df = f_df.append(t_row, ignore_index=True)
+                    f_df = f_df.fillna(0)
+                    print(f_df)
+                    print(clf.predict(f_df))
 
         print('Average FPS:', len(filenames) / (time.time() - start))
 
+def unitCoords(coords, oldResolution):
+    unitCoords = {}
+    unitCoords['x'] = coords['x'] / oldResolution['x'];
+    unitCoords['y'] = coords['y'] / oldResolution['y']
+    return unitCoords;
 
 if __name__ == "__main__":
     main()
